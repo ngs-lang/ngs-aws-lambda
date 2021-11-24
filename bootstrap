@@ -1,0 +1,35 @@
+#!/usr/bin/env ngs
+
+# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-custom.html
+# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-walkthrough.html
+
+# Initialization - load function handler
+# source $LAMBDA_TASK_ROOT/"$(echo $_HANDLER | cut -d. -f1).sh"
+
+t = ENV._HANDLER.split('.')
+file = t[0]
+func = t[1]
+
+handler = require(ENV.LAMBDA_TASK_ROOT / file)
+
+# # Processing
+# while true
+# do
+#   HEADERS="$(mktemp)"
+#   # Get an event. The HTTP request will block until one is received
+#   EVENT_DATA=$(curl -sS -LD "$HEADERS" -X GET "http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next")
+# 
+#   # Extract request ID by scraping response headers received above
+#   REQUEST_ID=$(grep -Fi Lambda-Runtime-Aws-Request-Id "$HEADERS" | tr -d '[:space:]' | cut -d: -f2)
+# 
+#   # Run the handler function from the script
+#   RESPONSE=$($(echo "$_HANDLER" | cut -d. -f2) "$EVENT_DATA")
+# 
+#   # Send the response
+#   curl -X POST "http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$REQUEST_ID/response"  -d "$RESPONSE"
+# done
+
+while true {
+	# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-next
+	event = `curl -sS -L "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next"`
+}
