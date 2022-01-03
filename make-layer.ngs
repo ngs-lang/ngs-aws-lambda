@@ -1,3 +1,28 @@
 #!/usr/bin/env ngs
 
 # TODO: Document minimal IAM permissions for this script
+# TODO: pin amazonlinux version (tag)
+
+CONTAINER_NAME = 'ngs-make-layer'
+
+F main(src:Dir) {
+	assert(src)
+	assert(Program('docker'))
+	script_dir = `line: dirname ${realpath(ARGV0)}`
+	$(rm -rf "${script_dir}/out")
+	$(mkdir -p "${script_dir}/out")
+	args = Argv({
+		'--name': CONTAINER_NAME
+		Repeat('-v'): [
+			"${src.path}:/make-layer/src:ro"
+			"${script_dir}:/make-layer/ngs-aws-lambda:ro"
+			"${script_dir}/out:/make-layer/out:rw"
+		]
+	})
+	$(top_level:: log: echo docker run --rm $*args amazonlinux /make-layer/ngs-aws-lambda/make-layer.sh)
+	$(log: cd:"out" zip -r - bin lib >layer.zip)
+	$(log: zip layer.zip bootstrap)
+
+	# TODO: version the thing
+	# aws lambda publish-layer-version --layer-name ngs --zip-file fileb://layer.zip
+}

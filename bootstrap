@@ -10,7 +10,7 @@
 
 log("Starting")
 
-t = ENV._HANDLER.split('.') # -> F(file,func)
+t = ENV._HANDLER.split('.')
 file = t[0]
 func = t[1]
 
