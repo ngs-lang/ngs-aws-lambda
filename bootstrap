@@ -16,7 +16,20 @@ func = t[1]
 
 log("Loading ${ENV.LAMBDA_TASK_ROOT / file}")
 
-handler = require(ENV.LAMBDA_TASK_ROOT / file)[func]
+# if true - workaround for top level syntax not supporting "try"
+if true {
+	try {
+		handler = require(ENV.LAMBDA_TASK_ROOT / file)[func]
+	} catch(e) {
+		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-initerror
+		error = {
+			'errorMessage': "TODO ${e}"
+			'errorType': e.typeof().name
+			'stackTrace': ["TODO"]
+		}
+		$(curl -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/init/error" -d ${error.encode_json()})
+	}
+}
 
 while true {
 	# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-next
@@ -29,15 +42,15 @@ while true {
 		response = handler(event.body.decode_json())
 		log("Sending response ${request_id}")
 		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-response
-		$(curl -X POST "http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/response" -d ${response.encode_json()})
+		$(curl -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/response" -d ${response.encode_json()})
 	} catch(e) {
 		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-invokeerror
 		error = {
-			'errorMessage': "TODO ${e}",
-			'errorType': e.typeof().name,
+			'errorMessage': "TODO ${e}"
+			'errorType': e.typeof().name
 			'stackTrace': ["TODO"]
 		}
-		$(curl -X POST "http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/error" -d ${error.encode_json()})
+		$(curl -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/error" -d ${error.encode_json()})
 	}
 	log("Sent response")
 }
