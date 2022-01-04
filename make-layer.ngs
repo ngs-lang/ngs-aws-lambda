@@ -5,24 +5,26 @@
 
 CONTAINER_NAME = 'ngs-make-layer'
 
-F main(src:Dir) {
+F main(src:Dir, build:Bool=true, remove_docker:Bool=true) {
 	assert(src)
 	assert(Program('docker'))
 	script_dir = `line: dirname ${realpath(ARGV0)}`
-	$(rm -rf "${script_dir}/out")
-	$(mkdir -p "${script_dir}/out")
-	args = Argv({
-		'--name': CONTAINER_NAME
-		Repeat('-v'): [
-			"${src.path}:/make-layer/src:ro"
-			"${script_dir}:/make-layer/ngs-aws-lambda:ro"
-			"${script_dir}/out:/make-layer/out:rw"
-		]
-	})
-	$(top_level:: log: echo docker run --rm $*args amazonlinux /make-layer/ngs-aws-lambda/make-layer.sh)
+	if build {
+		$(rm -rf "${script_dir}/out")
+		$(mkdir -p "${script_dir}/out")
+		args = Argv({
+			'--rm': remove_docker
+			'--name': CONTAINER_NAME
+			Repeat('-v'): [
+				"${src.path}:/make-layer/src:ro"
+				"${script_dir}:/make-layer/ngs-aws-lambda:ro"
+				"${script_dir}/out:/make-layer/out:rw"
+			]
+		})
+		$(top_level:: log: docker run $*args amazonlinux /make-layer/ngs-aws-lambda/make-layer.sh)
+	}
 	$(log: cd:"out" zip -r - bin lib >layer.zip)
 	$(log: zip layer.zip bootstrap)
-
-	# TODO: version the thing
-	# aws lambda publish-layer-version --layer-name ngs --zip-file fileb://layer.zip
+	version = read("${script_dir}/out/ngs-version").lines()[0]
+	$(top_level:: log: aws lambda publish-layer-version --layer-name "ngs-${version.replace('.', '-')}" --compatible-architectures x86_64 --zip-file fileb://layer.zip)
 }

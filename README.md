@@ -1,15 +1,48 @@
 # ngs-aws-lambda
 
-Run NGS in AWS Lambda - custom runtime
+Next Generation Shell - custom runtime layer for AWS Lambda.
 
-Don't use yet, it's a work in progress.
+Consider this project experimental / alpha quality.
 
 See https://github.com/ngs-lang/ngs/issues/88
 
 
+## Creating a Layer
+
+Requirements:
+
+* docker on local machine
+* Functional AWS CLI - the script will publish the layer using AWS CLI
+* https://github.com/ngs-lang/ngs checked out to a local directory
+
+```
+./make-layer.ngs /path/to/sources/of/ngs
+```
+
+Take a note of `LayerVersionArn`.
+
+If the build was OK but the publishing of the layer failed and you would like to retry the publishing after fixing the issue, run the following:
+
+```
+./make-layer.ngs /path/to/sources/of/ngs --no-build
+```
+
+
+## Using the Layer
+
+The created layer provides custom runtime. See the official documentation about using custom runtimes:
+
+https://docs.aws.amazon.com/lambda/latest/dg/runtimes-custom.html#runtimes-custom-use
+
+Use `LayerVersionArn` from the output of `make-layer.ngs` to configure your Lambda Function.
+
+See also the `examples` directory.
+
 ## Debugging
 
-To debug the `bootstrap` program, pass environment variable `DEBUG=aws_lambda_bootstrap` to the Lambda.
+To debug the `bootstrap` program, pass environment variable `DEBUG=aws_lambda_bootstrap` to the Lambda Function.
+
+## Event
 
 ## Context
 

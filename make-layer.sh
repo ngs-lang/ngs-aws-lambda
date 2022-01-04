@@ -27,4 +27,6 @@ for lib in libgc libjson-c libatomic_ops libgcc_s;do
 	cp -a /lib64/${lib}* /make-layer/out/lib/
 done
 
+ngs --version >/make-layer/out/ngs-version
+
 echo "[make-layer.sh] Done"
