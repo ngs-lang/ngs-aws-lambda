@@ -1,0 +1,11 @@
+ns {
+    F handler(event, context) {
+        log("event $event")
+        log("context $context")
+        {
+            'statusCode': 200
+            'headers': {'Content-type': 'text/plain'}
+            'body': "Hello world!\nNGS: ${VERSION}\n"
+        }
+    }
+}

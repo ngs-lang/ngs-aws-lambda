@@ -8,64 +8,73 @@
 # https://docs.aws.amazon.com/lambda/latest/dg/runtimes-walkthrough.html
 # https://aws.amazon.com/blogs/apn/aws-lambda-custom-runtime-for-php-a-practical-example/
 
-log("Starting")
+ns {
 
-# AWS layer is exracted there
-NGS_PATH.unshift('/opt/lib/ngs')
 
-# Handler format idea is from https://docs.aws.amazon.com/lambda/latest/dg/java-handler.html and conveys that a namespace is in play
-t = ENV._HANDLER.split('::')
-file = t[0]
-func = t[1]
+	F _to_lowercase(s:Str) s.mapo(F(ch) if ord(ch) in ord('A')...ord('Z') chr(ord('a') + ord(ch) - ord('A')) else ch)
 
-log("Loading ${ENV.LAMBDA_TASK_ROOT / file}")
+	ENV_CONTEXT = ENV.filterk(Pfx('AWS_LAMBDA_')).mapk(F(k) _to_lowercase(k - Pfx('AWS_LAMBDA_')))
 
-F _make_error(e:Exception) {
-	{
-		'errorMessage': exception_specific_message(e).join("\n")
-		'errorType': e.typeof().name
-		'stackTrace': (collector print_exception(e, echo=F(message) message.ensure(Lines).collect())).flatten()
+	log("Starting")
+
+	# AWS layer is exracted there
+	NGS_PATH.unshift('/opt/lib/ngs')
+
+	# Handler format idea is from https://docs.aws.amazon.com/lambda/latest/dg/java-handler.html and conveys that a namespace is in play
+	# TODO: try/catch to handle missing ::
+	t = ENV._HANDLER.split('::')
+	file = t[0]
+	func = t[1]
+
+	F _debug(s:Str) debug('aws_lambda_bootstrap', s)
+
+	F _make_error(e:Exception) {
+		{
+			'errorMessage': exception_specific_message(e).join("\n")
+			'errorType': e.typeof().name
+			'stackTrace': collector print_exception(e, echo=F(message) message.ensure(Lines).each(collect))
+		}
 	}
-}
 
-# if true - workaround for top level syntax not supporting "try"
-if true {
 	try {
+		log("Loading ${ENV.LAMBDA_TASK_ROOT / file}")
 		handler = require(ENV.LAMBDA_TASK_ROOT / file)[func]
-		log("Loaded ${ENV.LAMBDA_TASK_ROOT / file}")
+		_debug("Loaded ${ENV.LAMBDA_TASK_ROOT / file}")
 	} catch(e) {
-		log("Failed to load ${ENV.LAMBDA_TASK_ROOT / file}")
+		error("Failed to load ${ENV.LAMBDA_TASK_ROOT / file}")
 		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-initerror
-		error = _make_error(e)
-		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/init/error" -H 'Lambda-Runtime-Function-Error-Type: Runtime.NoSuchHandler' -d ${error.encode_json()})
-		log("Reported initialization error - failed to load ${ENV.LAMBDA_TASK_ROOT / file}")
-		# throw e
+		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/init/error" -H 'Lambda-Runtime-Function-Error-Type: Runtime.NoSuchHandler' -d ${_make_error(e).encode_json()})
+		error("Reported initialization error - failed to load ${ENV.LAMBDA_TASK_ROOT / file}")
 		exit(1)
 	}
-}
 
-while true {
-	# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-next
-	log("Waiting for invocation")
-	event = ``curl -sS -L -i "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next"``
-	request_id = event.headers['Lambda-Runtime-Aws-Request-Id']
-	log("Handling request ${request_id}")
-	try {
-		if event.headers.has('Lambda-Runtime-Trace-Id') {
-			ENV._X_AMZN_TRACE_ID = event.headers['Lambda-Runtime-Trace-Id']
+	while true {
+		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-next
+		_debug("Waiting for invocation")
+		event = ``curl -sS -L -i "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next"``
+		request_id = event.headers['Lambda-Runtime-Aws-Request-Id']
+		_debug("Handling request ${request_id}")
+		try {
+			if event.headers.has('Lambda-Runtime-Trace-Id') {
+				ENV._X_AMZN_TRACE_ID = event.headers['Lambda-Runtime-Trace-Id']
+			}
+			# "inspired" by https://github.com/aws/aws-lambda-ruby-runtime-interface-client -- lib/aws_lambda_ric/lambda_context.rb
+			# XXX: identity and client_context were not tested
+			context = ENV_CONTEXT + {
+				'deadline_ms': event.headers['Lambda-Runtime-Deadline-Ms'].Int()
+				'aws_request_id': request_id
+				'invoked_function_arn': event.headers['Lambda-Runtime-Invoked-Function-Arn']
+				'identity': event.headers.get('Lambda-Runtime-Cognito-Identity', '{}').decode_json()
+				'client_context': event.headers.get('Lambda-Runtime-Client-Context', '{}').decode_json()
+			}
+			response = handler(event.body.decode_json(), context)
+			_debug("Sending response ${request_id}")
+			# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-response
+			$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/response" -d ${response.encode_json()})
+		} catch(e) {
+			# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-invokeerror
+			$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/error" -d ${_make_error(e).encode_json()})
 		}
-		# TODO: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-		context = {
-
-		}
-		response = handler(event.body.decode_json(), context)
-		log("Sending response ${request_id}")
-		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-response
-		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/response" -d ${response.encode_json()})
-	} catch(e) {
-		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-invokeerror
-		error = _make_error(e)
-		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/error" -d ${error.encode_json()})
+		_debug("Sent response")
 	}
-	log("Sent response")
 }
