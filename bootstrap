@@ -1,9 +1,5 @@
 #!/usr/bin/env ngs
 
-# apt-get install -y libgc-dev libffi-dev libjson-c-dev peg libpcre3-dev make cmake pandoc pkg-config build-essential
-# yum install -y gc-devel libffi-devel json-c-devel ?peg? pcre-devel make cmake3 ?pandoc? pkgconfig 
-# yum groupinstall "Development Tools"
-
 # https://docs.aws.amazon.com/lambda/latest/dg/runtimes-custom.html
 # https://docs.aws.amazon.com/lambda/latest/dg/runtimes-walkthrough.html
 # https://aws.amazon.com/blogs/apn/aws-lambda-custom-runtime-for-php-a-practical-example/
