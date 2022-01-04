@@ -42,9 +42,15 @@ See also the `examples` directory.
 
 To debug the `bootstrap` program, pass environment variable `DEBUG=aws_lambda_bootstrap` to the Lambda Function.
 
-## Event
+## Handler
 
-## Context
+The handler function is called with two `Hash` objects as positional arguments: `event` and `context`, like in other languages supported by AWS Lambda.
+
+### Event Parameter
+
+Event is arbitrary and completely depends on the invocation. Different types of events have different formats.
+
+### Context Parameter
 
 Sample context (from a log):
 
