@@ -10,10 +10,10 @@ F main(src:Dir, build:Bool=true, remove_docker:Bool=true) {
 	assert(Program('docker'))
 	script_dir = `line: dirname ${realpath(ARGV0)}`
 	if build {
-		$(rm -rf "${script_dir}/out")
+		$(sudo rm -rf "${script_dir}/out")
 		$(mkdir -p "${script_dir}/out")
 		args = Argv({
-			'--rm': remove_docker
+			['--rm']: remove_docker
 			'--name': CONTAINER_NAME
 			Repeat('-v'): [
 				"${src.path}:/make-layer/src:ro"

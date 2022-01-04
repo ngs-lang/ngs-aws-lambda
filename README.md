@@ -27,6 +27,19 @@ If the build was OK but the publishing of the layer failed and you would like to
 ./make-layer.ngs /path/to/sources/of/ngs --no-build
 ```
 
+### How it Works
+
+The `make-layer.ngs` script works roughly as follows:
+
+* Runs docker container with Amazon Linux.
+* Builds NGS in the container.
+* Copies out of the container:
+	* the NGS binary (`ngs` file)
+	* NGS libraries (`*.ngs` files)
+	* the libraries (`*.so*` files) NGS depends on
+	* `ngs-version` file
+* Creates a zip with the above *and* the `bootstrap` file.
+* Publishes the zip file as a layer, using the contents of `ngs-version` file as part of the name of the layer. Example layer name: `ngs-0-2-14-alpha`.
 
 ## Using the Layer
 
