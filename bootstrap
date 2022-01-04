@@ -10,7 +10,11 @@
 
 log("Starting")
 
-t = ENV._HANDLER.split('.')
+# AWS layer is exracted there
+NGS_PATH.unshift('/opt/lib/ngs')
+
+# Handler format idea is from https://docs.aws.amazon.com/lambda/latest/dg/java-handler.html and conveys that a namespace is in play
+t = ENV._HANDLER.split('::')
 file = t[0]
 func = t[1]
 
@@ -20,14 +24,19 @@ log("Loading ${ENV.LAMBDA_TASK_ROOT / file}")
 if true {
 	try {
 		handler = require(ENV.LAMBDA_TASK_ROOT / file)[func]
+		log("Loaded ${ENV.LAMBDA_TASK_ROOT / file}")
 	} catch(e) {
+		log("Failed to load ${ENV.LAMBDA_TASK_ROOT / file}")
 		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-initerror
 		error = {
 			'errorMessage': "TODO ${e}"
 			'errorType': e.typeof().name
 			'stackTrace': ["TODO"]
 		}
-		$(curl -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/init/error" -d ${error.encode_json()})
+		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/init/error" -H 'Lambda-Runtime-Function-Error-Type: Runtime.NoSuchHandler' -d ${error.encode_json()})
+		log("Reported initialization error - failed to load ${ENV.LAMBDA_TASK_ROOT / file}")
+		# throw e
+		exit(1)
 	}
 }
 
@@ -38,11 +47,17 @@ while true {
 	request_id = event.headers['Lambda-Runtime-Aws-Request-Id']
 	log("Handling request ${request_id}")
 	try {
-		# ENV._X_AMZN_TRACE_ID = event.headers['Lambda-Runtime-Trace-Id']
-		response = handler(event.body.decode_json())
+		if event.headers.has('Lambda-Runtime-Trace-Id') {
+			ENV._X_AMZN_TRACE_ID = event.headers['Lambda-Runtime-Trace-Id']
+		}
+		# TODO: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
+		context = {
+
+		}
+		response = handler(event.body.decode_json(), context)
 		log("Sending response ${request_id}")
 		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-response
-		$(curl -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/response" -d ${response.encode_json()})
+		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/response" -d ${response.encode_json()})
 	} catch(e) {
 		# https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html#runtimes-api-invokeerror
 		error = {
@@ -50,7 +65,7 @@ while true {
 			'errorType': e.typeof().name
 			'stackTrace': ["TODO"]
 		}
-		$(curl -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/error" -d ${error.encode_json()})
+		$(curl -sS -X POST "http://${ENV.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$request_id/error" -d ${error.encode_json()})
 	}
 	log("Sent response")
 }
