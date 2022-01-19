@@ -5,7 +5,7 @@
 
 CONTAINER_NAME = 'ngs-make-layer'
 
-F main(src:Dir, build:Bool=true, remove_docker:Bool=true) {
+F main(src:Dir, build:Bool=true, publish:Bool=true, remove_docker:Bool=true) {
 	assert(src)
 	assert(Program('docker'))
 	script_dir = `line: dirname ${realpath(ARGV0)}`
@@ -26,5 +26,7 @@ F main(src:Dir, build:Bool=true, remove_docker:Bool=true) {
 	$(log: cd:"out" zip -r - bin lib >layer.zip)
 	$(log: zip layer.zip bootstrap)
 	version = read("${script_dir}/out/ngs-version").lines()[0]
-	$(top_level:: log: aws lambda publish-layer-version --layer-name "ngs-${version.replace('.', '-')}" --compatible-architectures x86_64 --zip-file fileb://layer.zip)
+	if publish {
+	    $(top_level:: log: aws lambda publish-layer-version --layer-name "ngs-${version.replace('.', '-')}" --compatible-architectures x86_64 --zip-file fileb://layer.zip)
+	}
 }
